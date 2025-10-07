@@ -1,0 +1,20 @@
+info: New session: 1AgAOMTQ5LjE1NC4xNjcuNDEBu3G3DrNg71k8UVIhJINQSqOWKm/p1jH7+9PAH/7WbeC001Y8QfVb+e9yCOphrA9t5ouzCdzN9GsCHiQO7+WZSCgMp6cv4jbTLs1TcijlWtUj9tl/OBW9R2ASNJsa7DFay90hVteabAzpClhrcUl8IcPADGRAq6uytGRvI/eQDSegMcpLCLQ96xqimpLiM/x5s3lRwJQW3EcTDOMKIraF9tZCJQ0e1hpykfO3h3QaSntRD92biQXvRcNISIJZK2JgUCioqu5318vplZeFESgCMoVyuj2yTtHzayEsHz6dpSaoXUB3W/cpg7IWP7cQeOvg/uTVoUdZkMCDvKoBPX/jJ4M= (add to .env TG_SESSION)
+info: New session: 1AgAOMTQ5LjE1NC4xNjcuNDEBu5rUMynT22YrU7746DTEd6E3OmcHQGZCfLYpPKrBv8mN8kBI2GtKwOTsIqptR53EhIvZAPNqjqhaYVwxaTnFB/v6VK8F7ab94LtewTqtnrtWRxJbND4UxM0HBVTZz1AJkmGVu/P2OOToRPIqw1vDrVvJ6pXbBJhugS50GaQ93uG9pN1skfNRq1OwPkbB6BS1uNfJrRomEBcnNsRGSdIZBaYSZubRHki8o1mCkzImw6uUFE+/KxzL12eYxj2SIZ3VaGL4udrSzjrjWLlx01yScfsBE6pAQVMEcldVliTZJD+zcc6eZ3lkdqTV4B8OK1s6zb/v0DgTFH6ajv7hVFnU6KY= (add to .env TG_SESSION)
+info: New session: 1AgAOMTQ5LjE1NC4xNjcuNDEBu5KaC0l8muMY431EDUUEVMmvKHobJDIuIleCrIets5wWIs5e/jrgpAXXc363T0OW9IJ6wQ0NKL8IYQdOSzwoNtpzeIFEOHyS/s2L7qcFbhUNRuu7ZQMxBPNJhEKICaw2W+dCNCDyayoFplYfBZeltxI4xUyo2nAKSHRBrOIkipsC1b+ZlvM80fHpYuL4X1fqI/XNch+0QT3Uk6cRuUqEYisSChjYNJIxUa7ujmz5prrsbwRSfQyRaiRSvn4Mz88x5N6puTkx3g21eta76OXK1knc1jc+EIahTnVXLIAcgxVAdZxV5eZ8XAHiQdryJ+Z+vDDTUFaxWWfvMaWFfcVx1wE= (add to .env TG_SESSION)
+error: Main error: Error: Invalid supabaseUrl: Must be a valid HTTP or HTTPS URL.
+info: Sent to @Bogdan_Lobanoff
+info: Initial send: {"status":"sent"}
+info: Listener started. Жди ответа от Богдана - агент обработает.
+info: Sent to @Bogdan_Lobanoff
+info: Initial send: {"status":"sent"}
+info: Listener started. Жди ответа от Богдана - агент обработает.
+info: Received from @Bogdan_Lobanoff: давай
+info: Agent reply: Привет! Я из Referendum. Помогаем зарабатывать на опросах без рекламных постов и получать трафик: вопрос через мини-апп в TG — выплаты за участие. Берем каналы в ранний доступ. Ок прислать 2 строки деталей?
+info: Stopping...
+info: Sent to @Bogdan_Lobanoff
+info: Initial send: {"status":"sent"}
+info: Listener started. Жди ответа от Богдана - агент обработает.
+info: Received from @Bogdan_Lobanoff: Давай
+info: Agent reply: Привет! Я из Referendum. Помогаем зарабатывать на опросах без рекламных постов и получать трафик: вопрос через мини-апп в TG — выплаты за участие. Берем каналы в ранний доступ. Ок прислать 2 строчки деталей?
+info: Handover needed. Suggested: Привет. Давай обсудим детали. Когда удобно?
+info: Handover: Привет. Давай обсудим детали. Когда удобно?
