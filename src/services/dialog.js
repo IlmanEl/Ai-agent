@@ -1,13 +1,13 @@
+// src/services/dialog.js
+
 import { getReply } from '../modules/aiAgent.js';
-import { prepareHandover } from '../modules/handover.js';
 import { log } from '../utils/logger.js';
 
 export async function handleDialog({ key, history, userReply }) {
-  history.push({ role: 'user', content: userReply });
-  const agentReply = await getReply({ key, history, message: userReply });
-  log.info('Agent reply: ' + agentReply);
-
-  const intent = 'MAYBE'; // Тест, потом LLM
-  const handoverRes = prepareHandover({ intent, history });
-  return { agentReply, handoverRes };
+  // history.push({ role: 'user', content: userReply }); // Временно убрано, т.к. добавляется в index.js после успешной отправки
+  
+  const { agentReply, handoverIntent } = await getReply({ key, history, message: userReply });
+  log.info(`Agent Reply (Intent: ${handoverIntent}): ${agentReply}`);
+  
+  return { agentReply, handoverIntent };
 }

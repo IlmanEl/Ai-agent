@@ -1,15 +1,39 @@
-import { createClient } from '@supabase/supabase-js';
-import Joi from 'joi';
+import fs from 'fs/promises';
+import { log } from '../utils/logger.js';
 
-const schema = Joi.object({ url: Joi.string().required(), key: Joi.string().required() });
+const FILE_PATH = './dialog_state.json';
 
-export function getDbClient(params) {
-  const { error } = schema.validate(params);
-  if (error) throw new Error('Invalid params: ' + error.message);
+// Имитация БД. Читает и записывает JSON файл.
+export function getDbClient() {
+    
+    /**
+     * Записывает полный стейт диалогов в JSON файл.
+     * @param {object} state - Объект, содержащий всю историю диалогов.
+     */
+    const saveState = async (state) => {
+        try {
+            await fs.writeFile(FILE_PATH, JSON.stringify(state, null, 2));
+        } catch (err) {
+            log.error('DB: Error saving state to JSON: ' + err.message);
+        }
+    };
 
-  const supabase = createClient(params.url, params.key);
-  return {
-    insert: async (table, data) => await supabase.from(table).insert(data),
-    select: async (table, query) => await supabase.from(table).select(query),
-  };
+    /**
+     * Читает полный стейт диалогов из JSON файла.
+     * @returns {Promise<object>} - Объект состояния или пустой объект.
+     */
+    const loadState = async () => {
+        try {
+            const data = await fs.readFile(FILE_PATH, 'utf8');
+            return JSON.parse(data);
+        } catch (err) {
+            // Файл не существует или невалиден (нормально при первом запуске)
+            return {};
+        }
+    };
+
+    return { saveState, loadState };
 }
+
+// Теперь этот модуль экспортирует только функции для работы с файлом.
+// Все упоминания Supabase удалены.

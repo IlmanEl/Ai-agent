@@ -4,12 +4,13 @@
   "main": "index.js",
   "type": "module",
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "telegram": "^2.25.8",
-    "input": "^1.0.1",
-    "openai": "^4.57.0",
     "@supabase/supabase-js": "^2.45.4",
-    "winston": "^3.14.2",
-    "joi": "^17.13.3"
+    "dotenv": "^16.4.5",
+    "input": "^1.0.1",
+    "joi": "^17.13.3",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.57.0",
+    "telegram": "^2.25.8",
+    "winston": "^3.14.2"
   }
 }
