@@ -838,3 +838,25 @@ info: Listener started. Жди сообщений...
 info: [ControlBot] State loaded. Admin ID: 393832759
 info: [ControlBot] Starting Long Polling...
 warn: Received message from a non-target user: 393832759. Ignoring.
+info: Telegram Client started.
+info: Loaded 6 dialogs from DB.
+info: [@Bogdan_Lobanoff] Dialog already initialized.
+info: [@praziquantelum] Dialog already initialized.
+info: [@Allihasssan] Dialog already initialized.
+info: Control Bot listener started.
+info: Listener started. Жди сообщений...
+info: [ControlBot] State loaded. Admin ID: 393832759
+info: [ControlBot] Starting Long Polling...
+warn: Received message from a non-target user: 1096739742. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 1096739742. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 1096739742. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
+warn: Received message from a non-target user: 393832759. Ignoring.
