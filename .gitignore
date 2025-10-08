@@ -7,8 +7,12 @@
 .LSOverride
 
 # Logs
-app.log
+*.log
+/app.log
 
+# Runtime data
+/control_state.json
+/dialog_state.json
 
 
 # Environment
