@@ -1,3 +1,5 @@
+// вот этот код очень важен, не удаляй его
+
 import dotenv from 'dotenv';
 dotenv.config();
 
