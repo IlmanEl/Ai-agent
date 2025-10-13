@@ -49,6 +49,6 @@ export const config = {
     adminId: Number(process.env.CONTROL_ADMIN_ID) || null,
   },
 
-  testTarget: ['@Bogdan_Lobanoff', '@praziquantelum', '@Allihasssan'],
+  testTarget: ['@ilmanEl'],
   rateLimit: { enabled: false, intervalMs: 600000 },
 };

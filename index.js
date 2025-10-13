@@ -1,5 +1,3 @@
-// index.js
-
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -18,28 +16,7 @@ import { log } from './src/utils/logger.js';
 import { handleDialog } from './src/services/dialog.js';
 import { config } from './src/config/env.js';
 import { NewMessage } from 'telegram/events/index.js';
-// !!! ИМПОРТ CONTROL BOT'А !!!
-import { startControlBotListener, sendHandoverNotification } from './src/modules/controlBot.js';
-
-
-let dialogState = {};
-let dbClient = null;
-
-async function initDialog(targetAddress) {
-  if (dialogState[targetAddress]) {
-    log.info(`[${targetAddress}] Dialog already initialized.`);
-    return;
-  }
-  
-  dialogState[targetAddress] = {
-    targetAddress: targetAddress,
-    history: [],
-    status: 'NEW', // NEW, ACTIVE, PENDING_HANDOVER
-    pendingReply: null,
-    targetId: null,
-  };
-  log.info(`[${targetAddress}] Initialized new dialog state.`);
-}
+import { getDialogState, updateDialogState, resetHandoverStatus } from './src/services/dialogState.js';
 
 async function main() {
   const { apiId, apiHash, phone, session } = config.tg;
@@ -50,110 +27,120 @@ async function main() {
     return;
   }
 
-  let client = new TelegramClient(new StringSession(session), apiId, apiHash, { connectionRetries: 5 });
+  const client = new TelegramClient(new StringSession(session), apiId, apiHash, { connectionRetries: 5 });
   await client.start();
-  log.info('Telegram Client started.');
   
-  dbClient = getDbClient({ url: config.supabase.url, key: config.supabase.key });
+  const me = await client.getMe();
+  // Агент теперь гарантированно @referendumm
+  const agentUsername = me.username ? '@' + me.username : null; 
+  log.info(`Telegram Client started. Agent: ${agentUsername}`);
 
-  // --- 1. Загрузка глобального состояния ---
-  dialogState = await dbClient.loadState();
-  log.info(`Loaded ${Object.keys(dialogState).length} dialogs from DB.`);
+  // DB Client инициализируется, но его методы не вызываются.
+  const dbClient = getDbClient({ url: config.supabase.url, key: config.supabase.key });
+
+  // -----------------------------------------------------------
+  // 1. Инициализация рассылки для всех целей из config.testTarget
+  // -----------------------------------------------------------
   
-  const targets = Array.isArray(config.testTarget) ? config.testTarget : [config.testTarget];
+  // Нормализуем config.testTarget в массив для унифицированной работы
+  let targets = config.testTarget;
+  if (typeof targets === 'string') {
+    targets = [targets];
+  } else if (!Array.isArray(targets)) {
+      log.error(`Invalid config.testTarget format: expected string or array, got ${typeof targets}`);
+      targets = [];
+  }
+  
+  const initialText = 'Привет! Я Ильман из Referendum. Мы помогаем каналам зарабатывать на опросах без лишней рекламы. Ты публикуешь вопрос в нашей мини-аппе. Получаешь выплаты за участие. Берем в ранний доступ. Хочешь пару строк деталей?';
 
-  // --- 2. Инициализация диалогов для ВСЕХ целей ---
+  // Запускаем цикл рассылки
   for (const target of targets) {
-    await initDialog(target);
-  }
+    const targetState = getDialogState(target);
 
-  // --- 3. Запуск Control Bot'а (в фоновом режиме) ---
-  if (config.controlBot.token) {
-      // Передаем dialogState и client, чтобы Control Bot мог отправлять ответы
-      startControlBotListener(dialogState, client).catch(err => log.error('Control Bot Listener Error: ' + err.message));
-      log.info('Control Bot listener started.');
-  }
+    // Если статус NEW или ACTIVE (чтобы не потерять сообщение, если оно не было отправлено)
+    if (targetState.status === 'NEW') {
+        const sendRes = await sendMessage({ client, target, text: initialText });
+        log.info(`Initial send to ${target}: ` + JSON.stringify(sendRes));
+        
+        // Обновляем статус и сохраняем историю
+        const newHistory = [{ role: 'assistant', content: initialText }];
+        updateDialogState(target, { 
+            status: 'ACTIVE', 
+            history: newHistory
+        });
 
-  // --- 4. Listener Logic ---
-  client.addEventHandler(async (event) => {
-    if (!event.isPrivate || !event.message || !event.message.text) return;
-    
-    const senderId = event.message.senderId ? event.message.senderId.toString() : null;
-    let targetAddress = event.message.sender ? (event.message.sender.username || senderId) : senderId;
-    const trimmedUserReply = event.message.text.trim();
-    
-    // Поиск по ID, если нет username
-    const foundKey = Object.keys(dialogState).find(key => dialogState[key].targetId === senderId);
-    if (foundKey) {
-        targetAddress = foundKey;
-    } else if (!dialogState[targetAddress]) {
-        // Если это нецелевой пользователь и его нет в состоянии, игнорируем
-        log.warn(`Received message from a non-target user: ${targetAddress}. Ignoring.`);
-        return;
-    }
-
-    const targetState = dialogState[targetAddress];
-    
-    // Сохраняем targetId для обратной связи
-    if (!targetState.targetId) {
-        targetState.targetId = senderId;
-        log.info(`[${targetAddress}] Saved targetId: ${senderId}`);
-    }
-    
-    log.info(`\n<<< RECEIVED from ${targetAddress} (ID: ${senderId}): ${trimmedUserReply} >>>`);
-
-    // Если диалог в режиме ожидания ответа человека, не отвечаем автоматически
-    if (targetState.status === 'PENDING_HANDOVER') {
-        log.warn(`[${targetAddress}] Status: PENDING_HANDOVER. Ignoring auto-reply.`);
-        return;
-    }
-    
-    // Добавляем сообщение клиента в историю перед вызовом AI
-    targetState.history.push({ role: 'user', content: trimmedUserReply });
-
-    // Вызываем AI для ответа и намерения
-    const { agentReply, handoverIntent } = await handleDialog({ key: config.openai.key, history: targetState.history, userReply: trimmedUserReply });
-
-    // 1. Логика Handover (более строгая)
-    if (handoverIntent === 'NONE') {
-      // --- АВТОМАТИЧЕСКИЙ ОТВЕТ (Диалог продолжается) ---
-      log.info(`[AUTO] Intent: NONE. Sending reply to ${targetAddress}.`);
-      
-      const finalAddress = targetState.targetAddress || senderId; 
-      const sendReplyRes = await sendMessage({ client, target: finalAddress, text: agentReply });
-      
-      if (sendReplyRes.status === 'sent') {
-          // Добавляем ответ AI в историю только после успешной отправки
-          targetState.history.push({ role: 'assistant', content: agentReply });
-      } else {
-          // Если ошибка отправки, удаляем последнее сообщение пользователя из истории, чтобы попробовать снова
-          targetState.history.pop();
-      }
-      targetState.status = 'ACTIVE';
+        // ВЫЗОВ DB.INSERT УДАЛЕН
     } else {
-      // --- ПЕРЕХВАТ УПРАВЛЕНИЯ (Уведомление Control Bot'а) ---
-      targetState.pendingReply = agentReply;
-      targetState.status = 'PENDING_HANDOVER';
-      
-      log.warn(`\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
-      log.warn(`!!! HANDOVER REQUIRED for ${targetAddress}: ${handoverIntent} !!!`);
-      log.warn(`[Client: ${targetAddress}] Last message: ${trimmedUserReply}`);
-      log.warn(`[Agent Proposal]: ${agentReply}`);
-      log.warn(`\n[ACTION REQUIRED]: Sending notification to Control Bot...`);
-      log.warn(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n`);
-      
-      await sendHandoverNotification(senderId, targetAddress, trimmedUserReply, agentReply);
+        log.info(`Initial message skipped. Dialog with ${target} is currently ${targetState.status}.`);
     }
-    
-    // 2. Сохраняем обновленное состояние
-    await dbClient.saveState(dialogState);
+  }
 
+  // -----------------------------------------------------------
+  // 2. Listener (обработка входящих сообщений)
+  // -----------------------------------------------------------
+
+  client.addEventHandler(async (event) => {
+    if (event.isPrivate && event.message.text) {
+      const userReply = event.message.text;
+      
+      const senderEntity = await client.getEntity(event.message.senderId);
+      const senderUsername = senderEntity.username ? '@' + senderEntity.username : null;
+      
+      if (senderUsername === agentUsername) return; 
+
+      const target = senderUsername; 
+      
+      if (targets.length > 0 && !targets.includes(target)) {
+          log.warn(`Received message from non-target user: ${target}. Skipping.`);
+          return;
+      }
+
+      const targetState = getDialogState(target); 
+      let history = targetState.history || [];
+      
+      if (targetState.status === 'PENDING_HANDOVER') {
+          log.warn(`Skipping AI reply for ${target}: Dialog is PENDING_HANDOVER.`);
+          history.push({ role: 'user', content: userReply });
+          updateDialogState(target, { history: history });
+          return;
+      }
+      
+      log.info('Received from ' + target + ': ' + userReply);
+
+      history.push({ role: 'user', content: userReply });
+      
+      // БЕЗОПАСНОЕ ДЕСТРУКТУРИРОВАНИЕ для предотвращения TypeError
+      const { agentReply, handoverRes = {} } = await handleDialog({ key: config.openai.key, history, userReply });
+      
+      // ИСПОЛЬЗУЕМ БЕЗОПАСНУЮ ПРОВЕРКУ
+      if (handoverRes.needHuman === true) {
+        log.info('Handover requested for ' + target + '. Suggested reply: ' + agentReply);
+        
+        const handoffRes = await sendMessage({ client, target, text: agentReply });
+        
+        history.push({ role: 'assistant', content: agentReply }); 
+        updateDialogState(target, { 
+            status: 'PENDING_HANDOVER', 
+            pendingReply: agentReply,
+            history: history
+        });
+        // ВЫЗОВ DB.INSERT УДАЛЕН
+        
+        return;
+      }
+
+      // Если бот отвечает
+      const sendReplyRes = await sendMessage({ client, target, text: agentReply });
+      log.info('Send reply: ' + JSON.stringify(sendReplyRes));
+      
+      history.push({ role: 'assistant', content: agentReply }); 
+      updateDialogState(target, { history: history });
+      
+      // ВЫЗОВ DB.INSERT УДАЛЕН
+    }
   }, new NewMessage({}));
-
+  
   log.info('Listener started. Жди сообщений...');
 }
 
-main().catch(err => {
-  log.error('Main error: ' + err.message);
-  process.exit(1);
-});
+main().catch(err => log.error('Main error: ' + err.message));

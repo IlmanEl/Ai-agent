@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
+    "async-prompt": "^1.0.1",
     "dotenv": "^16.4.5",
     "input": "^1.0.1",
     "joi": "^17.13.3",
