@@ -3,11 +3,17 @@
 import { getReply } from '../modules/aiAgent.js';
 import { log } from '../utils/logger.js';
 
+/**
+ * Processes the dialog by calling the LLM and returning its structured response.
+ * @returns {Promise<object>} - { agentReply: string, handoverIntent: string }
+ */
 export async function handleDialog({ key, history, userReply }) {
-  // history.push({ role: 'user', content: userReply }); // Временно убрано, т.к. добавляется в index.js после успешной отправки
   
-  const { agentReply, handoverIntent } = await getReply({ key, history, message: userReply });
-  log.info(`Agent Reply (Intent: ${handoverIntent}): ${agentReply}`);
+  // Call the LLM to get a structured response { agentReply, handoverIntent }
+  const llmResponse = await getReply({ key, history, message: userReply });
   
-  return { agentReply, handoverIntent };
+  log.info(`Agent Reply (Intent: ${llmResponse.handoverIntent}): ${llmResponse.agentReply}`);
+  
+  // Directly return the structured response from the AI agent
+  return llmResponse;
 }
