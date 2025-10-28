@@ -1,21 +1,27 @@
 // src/modules/controlBot.js
-
 import { config } from '../config/env.js';
 import { log } from '../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
-import fetch from 'node-fetch';
 
 const CONTROL_BOT_API = `https://api.telegram.org/bot${config.controlBot.token}`;
 const CONTROL_STATE_FILE = path.resolve('control_state.json');
 
-let state = { adminId: null, lastUpdateId: 0, editContext: null };
+let state = {
+    lastUpdateId: 0,
+    // Контекст теперь хранит все: { agent_id, target_username, tempMessage }
+    editContext: null 
+};
+// !!! ИСПРАВЛЕНИЕ АУТЕНТИФИКАЦИИ: АДМИН ID ИЗ .ENV !!!
+const VERIFIED_ADMIN_ID = config.controlBot.adminId;
 
 async function loadControlState() {
     try {
         const data = await fs.readFile(CONTROL_STATE_FILE, 'utf-8');
-        state = { ...state, ...JSON.parse(data) };
-        log.info(`[ControlBot] State loaded. Admin ID: ${state.adminId}`);
+        const loaded = JSON.parse(data);
+        state.lastUpdateId = loaded.lastUpdateId || 0;
+        state.editContext = loaded.editContext || null;
+        log.info(`[ControlBot] State loaded. Admin ID is ${VERIFIED_ADMIN_ID} (from .env). LastUpdateId: ${state.lastUpdateId}`);
     } catch (e) {
         if (e.code !== 'ENOENT') log.warn(`[ControlBot] Cannot load state file: ${e.message}`);
         await saveControlState();
@@ -29,7 +35,11 @@ async function saveControlState() {
 async function sendTgMessage(chatId, text, options = {}) {
     try {
         const payload = { chat_id: chatId, text: text, parse_mode: 'Markdown', ...options };
-        const response = await fetch(`${CONTROL_BOT_API}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const response = await fetch(`${CONTROL_BOT_API}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
         const result = await response.json();
         if (!result.ok) log.error(`[ControlBot] Error sending message to ${chatId}: ${result.description}`);
         return result;
@@ -39,103 +49,136 @@ async function sendTgMessage(chatId, text, options = {}) {
     }
 }
 
-function findActiveHandoverTarget(allDialogs) {
-    if (!allDialogs) return null;
-    for (const username in allDialogs) {
-        if (allDialogs[username].status === 'PENDING_HANDOVER') {
-            return allDialogs[username].targetUsername;
-        }
+export async function sendHandoverNotification({ agent_id, target_username, lastMessage, agentReply }) {
+    if (!VERIFIED_ADMIN_ID) {
+        log.error("[ControlBot] CONTROL_ADMIN_ID is not set in .env. Notification failed.");
+        return;
     }
-    return null;
-}
-
-export async function sendHandoverNotification({ targetUsername, lastMessage, agentReply }) {
-    if (!state.adminId) return;
-    state.editContext = null;
+    
+    // Сохраняем полный контекст для редактирования
+    state.editContext = { agent_id: agent_id, target_username: target_username, tempMessage: null };
     await saveControlState();
 
     const messageText = `❗️ **HANDOVER REQUIRED** ❗️\n\n` +
-        `👤 **Клиент:** \`${targetUsername}\`\n` +
+        `👤 **Клиент:** \`${target_username}\`\n` +
         `💬 **Последнее от клиента:** ${lastMessage}\n\n` +
         `🤖 **Предложение Агента:**\n\`\`\`\n${agentReply}\n\`\`\``;
     
-    const inlineKeyboard = { inline_keyboard: [[{ text: '✅ Одобрить', callback_data: `approve:${targetUsername}` }, { text: '❌ Отклонить', callback_data: `reject:${targetUsername}` }]] };
+    // Добавляем agent_id и target_username в callback_data для надежности
+    const callbackApprove = `approve:${agent_id}:${target_username}`;
+    const callbackReject = `reject:${agent_id}:${target_username}`;
+
+    const inlineKeyboard = {
+        inline_keyboard: [[
+            { text: '✅ Одобрить', callback_data: callbackApprove },
+            { text: '❌ Отклонить', callback_data: callbackReject }
+        ]]
+    };
     
-    await sendTgMessage(state.adminId, messageText, { reply_markup: inlineKeyboard });
-    await sendTgMessage(state.adminId, `✍️ Чтобы **отредактировать**, просто пришлите мне новый текст.`);
+    await sendTgMessage(VERIFIED_ADMIN_ID, messageText, { reply_markup: inlineKeyboard });
+    await sendTgMessage(VERIFIED_ADMIN_ID, `✍️ Чтобы **отредактировать**, просто пришлите мне новый текст.`);
 }
 
 async function processUpdate(update, deps) {
-    const { getDialogState, updateDialogState, resetHandoverStatus, sendMessage, agentClient, getAllDialogs } = deps;
+    const { getDialogState, updateDialogState, resetHandoverStatus, sendMessage, agentClient } = deps;
+    
+    const chatId = update.message ? update.message.chat.id : (update.callback_query ? update.callback_query.message.chat.id : null);
+    
+    if (chatId != VERIFIED_ADMIN_ID) { // Используем != для сравнения числа и строки
+        log.warn(`[ControlBot] Received message from unauthorized user: ${chatId}`);
+        return;
+    }
 
     if (update.message) {
-        const { chat, text } = update.message;
-        if (text === '/start' || text === config.controlBot.secretKey) {
-            if (text === '/start') await sendTgMessage(chat.id, "👋 Привет! Для авторизации введите ваш секретный ключ.");
-            if (text === config.controlBot.secretKey) {
-                state.adminId = chat.id;
-                await saveControlState();
-                await sendTgMessage(chat.id, `🎉 **Авторизация успешна!**`);
-            }
+        const { text } = update.message;
+
+        // Логика /start и secretKey УДАЛЕНА
+        if (text === '/start') {
+            await sendTgMessage(VERIFIED_ADMIN_ID, "Бот-контроллер активен.");
             return;
         }
-        if (!state.adminId || chat.id !== state.adminId) return;
-        
-        const allDialogs = getAllDialogs(); 
-        const activeHandoverTarget = findActiveHandoverTarget(allDialogs);
 
-        if (activeHandoverTarget) {
-            state.editContext = { targetUsername: activeHandoverTarget, tempMessage: text };
+        if (state.editContext && state.editContext.target_username) {
+            state.editContext.tempMessage = text;
             await saveControlState();
-            const confirmationText = `Вы хотите отправить клиенту \`${activeHandoverTarget}\` следующее сообщение?\n\n---\n*${text}*`;
-            const confirmationKeyboard = { inline_keyboard: [[{ text: '✅ Да, отправить', callback_data: `confirm_send` }, { text: '✏️ Нет, переписать', callback_data: `rewrite` }]] };
-            await sendTgMessage(state.adminId, confirmationText, { reply_markup: confirmationKeyboard });
+
+            const confirmationText = `Вы хотите отправить клиенту \`${state.editContext.target_username}\` следующее сообщение?\n\n---\n*${text}*`;
+            const confirmationKeyboard = {
+                inline_keyboard: [[
+                    { text: '✅ Да, отправить', callback_data: `confirm_send` },
+                    { text: '✏️ Нет, переписать', callback_data: `rewrite` }
+                ]]
+            };
+            await sendTgMessage(VERIFIED_ADMIN_ID, confirmationText, { reply_markup: confirmationKeyboard });
+
         } else {
-            await sendTgMessage(state.adminId, "Неизвестная команда. Я принимаю текст для редактирования только когда есть активный Handover.");
+            await sendTgMessage(VERIFIED_ADMIN_ID, "Неизвестная команда. Я принимаю текст для редактирования только когда есть активный Handover.");
         }
         return;
     }
 
     if (update.callback_query) {
-        const { message, data } = update.callback_query;
-        const chatId = message.chat.id;
+        const { data } = update.callback_query;
         
-        if (data.startsWith('approve:')) {
-            const targetUsername = data.split(':')[1];
-            const dialog = getDialogState(targetUsername);
-            if (dialog && dialog.status === 'PENDING_HANDOVER') {
-                await sendMessage({ client: agentClient, target: targetUsername, text: dialog.pendingReply });
-                const newHistory = [...dialog.history, { role: 'assistant', content: dialog.pendingReply }];
-                updateDialogState(targetUsername, { history: newHistory, status: 'ACTIVE', pendingReply: null });
-                await sendTgMessage(chatId, `✅ **Одобрено** клиенту \`${targetUsername}\`.`);
+        if (data.startsWith('approve:') || data.startsWith('reject:')) {
+            const parts = data.split(':');
+            const action = parts[0];
+            const agent_id = parts[1];
+            const target_username = parts[2];
+
+            const dialog = await getDialogState(agent_id, target_username);
+            if (!dialog || dialog.status !== 'PENDING_HANDOVER') {
+                 await sendTgMessage(chatId, `⚠️ Действие для \`${target_username}\` уже не актуально.`);
+                 return;
             }
-        } else if (data.startsWith('reject:')) {
-            const targetUsername = data.split(':')[1];
-            resetHandoverStatus(targetUsername);
-            await sendTgMessage(chatId, `❌ **Handover отклонён** для \`${targetUsername}\`.`);
+
+            if (action === 'approve') {
+                await sendMessage({ client: agentClient, target: target_username, text: dialog.pending_reply });
+                const newHistory = [...dialog.history, { role: 'assistant', content: dialog.pending_reply }];
+                await updateDialogState(agent_id, target_username, { history: newHistory, status: 'ACTIVE', pending_reply: null });
+                await sendTgMessage(chatId, `✅ **Одобрено** клиенту \`${target_username}\`.`);
+            } else { // reject
+                await resetHandoverStatus(agent_id, target_username);
+                await sendTgMessage(chatId, `❌ **Handover отклонён** для \`${target_username}\`.`);
+            }
+            state.editContext = null;
+            await saveControlState();
+        
         } else if (data === 'confirm_send') {
-            if (state.editContext) {
-                const { targetUsername, tempMessage } = state.editContext;
-                const dialog = getDialogState(targetUsername);
+            if (state.editContext && state.editContext.agent_id && state.editContext.tempMessage) {
+                const { agent_id, target_username, tempMessage } = state.editContext;
+                const dialog = await getDialogState(agent_id, target_username);
+                
                 if (dialog && dialog.status === 'PENDING_HANDOVER') {
-                    await sendMessage({ client: agentClient, target: targetUsername, text: tempMessage });
+                    await sendMessage({ client: agentClient, target: target_username, text: tempMessage });
                     const newHistory = [...dialog.history, { role: 'assistant', content: tempMessage }];
-                    updateDialogState(targetUsername, { history: newHistory, status: 'ACTIVE', pendingReply: null });
-                    await sendTgMessage(chatId, `✅ **Ваш вариант отправлен** клиенту \`${targetUsername}\`.`);
+                    await updateDialogState(agent_id, target_username, { history: newHistory, status: 'ACTIVE', pending_reply: null });
+                    await sendTgMessage(chatId, `✅ **Ваш вариант отправлен** клиенту \`${target_username}\`.`);
                     state.editContext = null;
                     await saveControlState();
+                } else {
+                    await sendTgMessage(chatId, `⚠️ Ошибка: диалог с \`${target_username}\` уже не в режиме ожидания.`);
                 }
             }
         } else if (data === 'rewrite') {
-            state.editContext = null;
-            await saveControlState();
-            await sendTgMessage(chatId, "Отправка отменена. Пришлите новый вариант.");
+            if (state.editContext) {
+                state.editContext.tempMessage = null;
+                await saveControlState();
+            }
+            await sendTgMessage(chatId, "Хорошо, отправка отменена. Пришлите новый вариант текста.");
         }
     }
 }
 
 export async function startControlBotListener(deps) {
-    if (!config.controlBot.token) return;
+    if (!config.controlBot.token) {
+        log.warn("[ControlBot] CONTROL_BOT_TOKEN не настроен.");
+        return;
+    }
+    if (!VERIFIED_ADMIN_ID) {
+        log.error("[ControlBot] CONTROL_ADMIN_ID не указан в .env! Бот не может запуститься.");
+        return;
+    }
     
     const pollingLoop = async () => {
         await loadControlState();
@@ -143,8 +186,9 @@ export async function startControlBotListener(deps) {
         while (true) {
             try {
                 const url = `${CONTROL_BOT_API}/getUpdates?offset=${state.lastUpdateId + 1}&timeout=30`;
-                const response = await fetch(url);
+                const response = await fetch(url); // Используем `fetch` из Node.js v18+
                 const data = await response.json();
+
                 if (data.ok && data.result.length > 0) {
                     for (const update of data.result) {
                         state.lastUpdateId = update.update_id;
