@@ -12,16 +12,12 @@ try {
     supabase = null;
 }
 
-/**
- * Получает ОДИН диалог по `agent_id` и `target_username`
- */
 export async function getDialog(agent_id, target_username) {
     if (!supabase) {
         log.error('[DB] Supabase client not available.');
         return null;
     }
     const cleanUsername = target_username.startsWith('@') ? target_username.substring(1) : target_username;
-
     try {
         const { data, error } = await supabase
             .from('dialogs')
@@ -29,41 +25,32 @@ export async function getDialog(agent_id, target_username) {
             .eq('agent_id', agent_id)
             .eq('target_username', cleanUsername)
             .single();
-
-        if (error && error.code !== 'PGRST116') { // 'No rows found' (это не ошибка)
+        if (error && error.code !== 'PGRST116') {
             log.error(`[DB] Error fetching dialog for ${cleanUsername}:`, error.message);
             return null;
         }
-        return data; // null или объект
+        return data;
     } catch (e) {
         log.error(`[DB] Exception fetching dialog: ${e.message}`);
         return null;
     }
 }
-
-/**
- * Создает или обновляет диалог
- */
 export async function upsertDialog(dialogData) {
     if (!supabase) {
         log.error('[DB] Supabase client not available.');
         return null;
     }
-    
-    // Убедимся, что `target_username` без "@"
     if (dialogData.target_username) {
         dialogData.target_username = dialogData.target_username.startsWith('@') 
             ? dialogData.target_username.substring(1) 
             : dialogData.target_username;
     }
-
     try {
         const { data, error } = await supabase
             .from('dialogs')
-            .upsert(dialogData, { onConflict: 'agent_id, target_username' }) // Уникальный ключ
+            .upsert(dialogData, { onConflict: 'agent_id, target_username' })
             .select()
             .single();
-
         if (error) {
             log.error(`[DB] Error upserting dialog:`, error.message);
             return null;
@@ -77,19 +64,31 @@ export async function upsertDialog(dialogData) {
 
 /**
  * Получает одного агента по его ID
+ * !!! ИСПРАВЛЕНИЕ: Мы явно указываем все колонки, чтобы Supabase вернул "тяжелый" system_prompt !!!
  */
 export async function getAgent(agent_id) {
     if (!supabase) return null;
     try {
+        // УКАЗЫВАЕМ КОЛОНКИ ЯВНО ВМЕСТО '*'
         const { data, error } = await supabase
             .from('ai_agents')
-            .select('*')
-            .eq('id', agent_id)
-            .single();
-        if (error) throw error;
-        return data;
+            .select('id, agent_name, tg_session_string, system_prompt, initial_opener_text')
+            .eq('id', agent_id); 
+
+        if (error) {
+            log.error(`[DB] Error during agent fetch: ${error.message}`);
+            throw error;
+        }
+
+        if (!data || data.length === 0) {
+            log.error(`[DB] Error fetching agent: 0 rows found for UUID ${agent_id}`);
+            return null;
+        }
+        
+        return data[0]; // Возвращаем ПЕРВЫЙ элемент массива
+
     } catch (e) {
-        log.error(`[DB] Error fetching agent: ${e.message}`);
+        log.error(`[DB] Catch exception fetching agent: ${e.message}`);
         return null;
     }
 }
@@ -102,7 +101,7 @@ export async function getClient(client_id) {
     try {
         const { data, error } = await supabase
             .from('clients')
-            .select('*')
+            .select('*') // Здесь '*' - это нормально
             .eq('id', client_id)
             .single();
         if (error) throw error;

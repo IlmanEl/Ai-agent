@@ -12,23 +12,17 @@ import { handleDialog } from './src/services/dialog.js';
 import { config } from './src/config/env.js';
 import { NewMessage } from 'telegram/events/index.js';
 import { startControlBotListener, sendHandoverNotification } from './src/modules/controlBot.js'; 
-import { getDialogState, updateDialogState, resetHandoverStatus } from './src/services/dialogState.js';
-import { getAgent } from './src/modules/db.js'; // Нам нужно загружать агента
+import { getDialogState, updateDialogState, resetHandoverStatus, getAllDialogs } from './src/services/dialogState.js';
+import { getAgent } from './src/modules/db.js';
 
 // --- ВАЖНО: ЗАДАЙТЕ UUID ВАШЕГО АГЕНТА ИЗ SUPABASE ЗДЕСЬ ---
-// (Это временное решение, пока нет админ-панели)
-// 1. Зайдите в Supabase -> Table Editor -> `ai_agents`
-// 2. Нажмите "Insert row"
-// 3. Заполните поля (agent_name, system_prompt, initial_opener_text)
-// 4. Скопируйте `id` (UUID) этой строки и вставьте сюда:
-const CURRENT_AGENT_UUID = "ebb7d2b3-040f-478e-b3aa-79bf18929e73"; 
+const CURRENT_AGENT_UUID = "8435c742-1f1e-4e72-a33b-2221985e9f83"; // ЗАМЕНИТЕ НА ВАШ UUID
 // -------------------------------------------------------------
 
+
 async function main() {
-  if (CURRENT_AGENT_UUID.startsWith("ВСТАВЬТЕ_СЮДА")) {
-      log.error("---------------------------------------------------------------");
-      log.error("ОШИБКА: Укажите ваш `CURRENT_AGENT_UUID` в файле `index.js` (строка 21)");
-      log.error("---------------------------------------------------------------");
+  if (CURRENT_AGENT_UUID.startsWith("ЗАМЕНИТЕ_МЕНЯ")) {
+      log.error("ОШИБКА: Укажите ваш `CURRENT_AGENT_UUID` в файле `index.js`");
       return;
   }
 
@@ -43,14 +37,15 @@ async function main() {
   
   if (!agentData.tg_session_string) {
       log.warn("Сессия агента не найдена в БД. Запускаем получение новой сессии...");
+      // Используем данные из .env для получения ПЕРВОЙ сессии
       const newSession = await getSession({ 
           apiId: config.tg.apiId, 
           apiHash: config.tg.apiHash, 
           phone: config.tg.phone 
       });
       log.info('New session: ' + newSession);
-      log.info('!!! ПОЖАЛУЙСТА, СКОПИРУЙТЕ ЭТУ СЕССИЮ В SUPABASE (поле tg_session_string) и перезапустите !!!');
-      return; // Останавливаемся, чтобы юзер мог сохранить сессию
+      log.info('!!! ПОЖАЛУЙСТА, СКОПИРУЙТЕ ЭТУ СЕССИЮ В SUPABASE (поле tg_session_string для вашего агента) и перезапустите !!!');
+      return; 
   }
 
   await client.start();
@@ -60,11 +55,11 @@ async function main() {
   log.info(`Telegram Client started. Agent: ${agentUsername}`);
   
   startControlBotListener({
-      sendMessage, getDialogState, updateDialogState, resetHandoverStatus, agentClient: client,
+      sendMessage, getDialogState, updateDialogState, resetHandoverStatus, agentClient: client, getAllDialogs
   });
 
   let targets = Array.isArray(config.testTarget) ? config.testTarget : [config.testTarget];
-  const initialText = agentData.initial_opener_text; // Берем из БД
+  const initialText = agentData.initial_opener_text; 
 
   for (const target of targets) {
     const targetState = await getDialogState(CURRENT_AGENT_UUID, target);
@@ -88,9 +83,7 @@ async function main() {
 
     try {
         await client.invoke(new Api.messages.ReadHistory({ peer: senderEntity }));
-    } catch (e) {
-        log.warn(`Could not mark history as read: ${e.message}`);
-    }
+    } catch (e) { log.warn(`Could not mark history as read: ${e.message}`); }
 
     const targetState = await getDialogState(CURRENT_AGENT_UUID, senderUsername);
     if (targetState.status === 'PENDING_HANDOVER') {
@@ -100,13 +93,17 @@ async function main() {
     
     log.info(`Received from ${senderUsername}: ${userReply}`);
     const currentHistory = [...targetState.history, { role: 'user', content: userReply }];
-    await client.invoke(new Api.messages.SetTyping({ peer: senderEntity, action: new Api.SendMessageTypingAction() }));
     
+    try {
+      await client.invoke(new Api.messages.SetTyping({ peer: senderEntity, action: new Api.SendMessageTypingAction() }));
+    } catch(e) { /* ignore */ }
+    
+    // !!! ИСПРАВЛЕНИЕ: ПЕРЕДАЕМ system_prompt ИЗ agentData !!!
     const { agentReply, handoverIntent } = await handleDialog({ 
       key: config.openai.key, 
       history: currentHistory, 
       userReply,
-      system_prompt: agentData.system_prompt // Передаем промпт из БД
+      system_prompt: agentData.system_prompt // <--- ВОТ ИСПРАВЛЕНИЕ
     });
     
     if (handoverIntent && (handoverIntent === 'POSITIVE_CLOSE' || handoverIntent === 'AI_FAILURE')) {
