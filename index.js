@@ -15,9 +15,8 @@ import { startControlBotListener, sendHandoverNotification } from './src/modules
 import { getDialogState, updateDialogState, resetHandoverStatus, getAllDialogs } from './src/services/dialogState.js';
 import { getAgent } from './src/modules/db.js';
 
-// --- ВАЖНО: ЗАДАЙТЕ UUID ВАШЕГО АГЕНТА ИЗ SUPABASE ЗДЕСЬ ---
-const CURRENT_AGENT_UUID = "8435c742-1f1e-4e72-a33b-2221985e9f83"; // ЗАМЕНИТЕ НА ВАШ UUID
-// -------------------------------------------------------------
+
+const CURRENT_AGENT_UUID = "8435c742-1f1e-4e72-a33b-2221985e9f83"; 
 
 
 async function main() {
@@ -37,7 +36,6 @@ async function main() {
   
   if (!agentData.tg_session_string) {
       log.warn("Сессия агента не найдена в БД. Запускаем получение новой сессии...");
-      // Используем данные из .env для получения ПЕРВОЙ сессии
       const newSession = await getSession({ 
           apiId: config.tg.apiId, 
           apiHash: config.tg.apiHash, 
@@ -96,14 +94,14 @@ async function main() {
     
     try {
       await client.invoke(new Api.messages.SetTyping({ peer: senderEntity, action: new Api.SendMessageTypingAction() }));
-    } catch(e) { /* ignore */ }
+    } catch(e) {}
     
-    // !!! ИСПРАВЛЕНИЕ: ПЕРЕДАЕМ system_prompt ИЗ agentData !!!
+   
     const { agentReply, handoverIntent } = await handleDialog({ 
       key: config.openai.key, 
       history: currentHistory, 
       userReply,
-      system_prompt: agentData.system_prompt // <--- ВОТ ИСПРАВЛЕНИЕ
+      system_prompt: agentData.system_prompt
     });
     
     if (handoverIntent && (handoverIntent === 'POSITIVE_CLOSE' || handoverIntent === 'AI_FAILURE')) {

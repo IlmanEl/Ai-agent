@@ -9,10 +9,9 @@ const CONTROL_STATE_FILE = path.resolve('control_state.json');
 
 let state = {
     lastUpdateId: 0,
-    // Контекст теперь хранит все: { agent_id, target_username, tempMessage }
     editContext: null 
 };
-// !!! ИСПРАВЛЕНИЕ АУТЕНТИФИКАЦИИ: АДМИН ID ИЗ .ENV !!!
+
 const VERIFIED_ADMIN_ID = config.controlBot.adminId;
 
 async function loadControlState() {
@@ -55,7 +54,6 @@ export async function sendHandoverNotification({ agent_id, target_username, last
         return;
     }
     
-    // Сохраняем полный контекст для редактирования
     state.editContext = { agent_id: agent_id, target_username: target_username, tempMessage: null };
     await saveControlState();
 
@@ -64,7 +62,6 @@ export async function sendHandoverNotification({ agent_id, target_username, last
         `💬 **Последнее от клиента:** ${lastMessage}\n\n` +
         `🤖 **Предложение Агента:**\n\`\`\`\n${agentReply}\n\`\`\``;
     
-    // Добавляем agent_id и target_username в callback_data для надежности
     const callbackApprove = `approve:${agent_id}:${target_username}`;
     const callbackReject = `reject:${agent_id}:${target_username}`;
 
@@ -84,7 +81,7 @@ async function processUpdate(update, deps) {
     
     const chatId = update.message ? update.message.chat.id : (update.callback_query ? update.callback_query.message.chat.id : null);
     
-    if (chatId != VERIFIED_ADMIN_ID) { // Используем != для сравнения числа и строки
+    if (chatId != VERIFIED_ADMIN_ID) { 
         log.warn(`[ControlBot] Received message from unauthorized user: ${chatId}`);
         return;
     }
@@ -92,7 +89,6 @@ async function processUpdate(update, deps) {
     if (update.message) {
         const { text } = update.message;
 
-        // Логика /start и secretKey УДАЛЕНА
         if (text === '/start') {
             await sendTgMessage(VERIFIED_ADMIN_ID, "Бот-контроллер активен.");
             return;
@@ -186,7 +182,7 @@ export async function startControlBotListener(deps) {
         while (true) {
             try {
                 const url = `${CONTROL_BOT_API}/getUpdates?offset=${state.lastUpdateId + 1}&timeout=30`;
-                const response = await fetch(url); // Используем `fetch` из Node.js v18+
+                const response = await fetch(url); 
                 const data = await response.json();
 
                 if (data.ok && data.result.length > 0) {
