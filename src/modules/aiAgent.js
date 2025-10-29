@@ -7,11 +7,8 @@ const schema = Joi.object({
     key: Joi.string().required(), 
     history: Joi.array().required(), 
     message: Joi.string().required(),
-    system_prompt: Joi.string().required() // Теперь промпт передается сюда
+    system_prompt: Joi.string().required() 
 });
-
-// !!! СИСТЕМНЫЙ ПРОМПТ УДАЛЕН ОТСЮДА !!!
-// Он будет загружаться из БД для каждого агента
 
 export async function getReply(params) {
   const { error } = schema.validate(params);
@@ -24,7 +21,7 @@ export async function getReply(params) {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: system_prompt }, // Используем промпт из БД
+        { role: 'system', content: system_prompt }, 
         ...history.slice(-12)
       ],
       temperature: 0.7,
@@ -42,10 +39,10 @@ export async function getReply(params) {
     
   } catch (e) {
     log.error('OpenAI call failed or JSON parse error: ' + e.message);
-    // !!! ИСПРАВЛЕНИЕ "ТИХОГО СБОЯ" !!!
+   
     return { 
       agentReply: "Извините, сейчас небольшие технические неполадки. Я уточню ваш вопрос и скоро вернусь.", 
-      handoverIntent: 'AI_FAILURE' // Новый интент для передачи человеку
+      handoverIntent: 'AI_FAILURE'
     };
   }
 }

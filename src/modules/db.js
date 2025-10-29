@@ -62,14 +62,10 @@ export async function upsertDialog(dialogData) {
     }
 }
 
-/**
- * Получает одного агента по его ID
- * !!! ИСПРАВЛЕНИЕ: Мы явно указываем все колонки, чтобы Supabase вернул "тяжелый" system_prompt !!!
- */
+
 export async function getAgent(agent_id) {
     if (!supabase) return null;
     try {
-        // УКАЗЫВАЕМ КОЛОНКИ ЯВНО ВМЕСТО '*'
         const { data, error } = await supabase
             .from('ai_agents')
             .select('id, agent_name, tg_session_string, system_prompt, initial_opener_text')
@@ -85,7 +81,7 @@ export async function getAgent(agent_id) {
             return null;
         }
         
-        return data[0]; // Возвращаем ПЕРВЫЙ элемент массива
+        return data[0]; 
 
     } catch (e) {
         log.error(`[DB] Catch exception fetching agent: ${e.message}`);
@@ -93,15 +89,12 @@ export async function getAgent(agent_id) {
     }
 }
 
-/**
- * Получает ОДНОГО клиента по его ID
- */
 export async function getClient(client_id) {
     if (!supabase) return null;
     try {
         const { data, error } = await supabase
             .from('clients')
-            .select('*') // Здесь '*' - это нормально
+            .select('*') 
             .eq('id', client_id)
             .single();
         if (error) throw error;

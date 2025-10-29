@@ -14,12 +14,11 @@ const schema = Joi.object({
   SUPABASE_URL: Joi.string().allow('', null).optional(),
   SUPABASE_KEY: Joi.string().allow('', null).optional(),
   
-  // !!! НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ CONTROL BOT'А !!!
   CONTROL_BOT_TOKEN: Joi.string().required(),
   CONTROL_SECRET_KEY: Joi.string().required(),
   CONTROL_ADMIN_ID: Joi.number().optional().allow(null), 
 
-}).unknown(true); // Allow extra system env vars
+}).unknown(true); 
 
 const { error } = schema.validate(process.env);
 if (error) {
@@ -42,7 +41,6 @@ export const config = {
     key: process.env.SUPABASE_KEY || '',
   },
   
-  // !!! НОВАЯ КОНФИГУРАЦИЯ CONTROL BOT'А !!!
   controlBot: {
     token: process.env.CONTROL_BOT_TOKEN,
     secretKey: process.env.CONTROL_SECRET_KEY, 
