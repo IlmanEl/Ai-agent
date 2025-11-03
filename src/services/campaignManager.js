@@ -7,9 +7,6 @@ const supabase = createClient(config.supabase.url, config.supabase.key);
 
 class CampaignManager {
     
-    /**
-     * Получить ОДНОГО следующего лида для агента
-     */
     async getNextLead(agent_id) {
         try {
             const { data, error } = await supabase
@@ -21,7 +18,7 @@ class CampaignManager {
                 .limit(1)
                 .single();
 
-            if (error && error.code !== 'PGRST116') { // PGRST116 = 0 строк, это не ошибка
+            if (error && error.code !== 'PGRST116') { 
                 log.error(`[CampaignManager] Error fetching next lead: ${error.message}`);
                 return null;
             }
@@ -32,16 +29,14 @@ class CampaignManager {
         }
     }
 
-    /**
-     * Получить ВСЕХ, с кем агент УЖЕ общается
-     */
+
     async getActiveDialogs(agent_id) {
         try {
             const { data, error } = await supabase
                 .from('leads')
                 .select('username, status, campaign_id')
                 .eq('assigned_agent_id', agent_id)
-                .in('status', ['CONTACTED', 'REPLIED', 'HANDOVER']) // Все, кто не 'NEW'
+                .in('status', ['CONTACTED', 'REPLIED', 'HANDOVER']) 
                 .order('last_contact_at', { ascending: false });
 
             if (error) throw error;
@@ -52,9 +47,6 @@ class CampaignManager {
         }
     }
 
-    /**
-     * Обновить статус лида (e.g., 'NEW' -> 'CONTACTED')
-     */
     async updateLeadStatus(campaign_id, username, newStatus, metadata = {}) {
         const cleanUsername = username.startsWith('@') ? username.substring(1) : username;
         
