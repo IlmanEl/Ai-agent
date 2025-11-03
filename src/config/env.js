@@ -47,6 +47,9 @@ export const config = {
     adminId: Number(process.env.CONTROL_ADMIN_ID) || null,
   },
 
-  testTarget: ['@ilmanEl'],
-  rateLimit: { enabled: false, intervalMs: 600000 },
+  testTarget: '@ilmanEl',
+rateLimit: {
+    replyDelayMinMs: 1000,
+    replyDelayMaxMs: 3000
+  }
 };
