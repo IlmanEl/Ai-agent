@@ -1,23 +1,13 @@
-# VSCode
 .vscode/
-
-# Mac system files
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Logs
 *.log
 /app.log
-
-# Runtime data
 /control_state.json
+/dialog_state_firstTry.json
+/dialog_state_secondTry.json
 /dialog_state.json
-
-
-# Environment
 .env
 .env.local
-
-# Dependencies
 node_modules/
