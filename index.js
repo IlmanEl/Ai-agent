@@ -1,4 +1,4 @@
-// index.js (Исправленная версия)
+// index.js 
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -16,9 +16,9 @@ import { getDialogState, updateDialogState, resetHandoverStatus, getAllDialogs }
 import { getAgent } from './src/modules/db.js';
 import { campaignManager } from './src/services/campaignManager.js';
 
-// --- ВАЖНО: ЗАДАЙТЕ UUID ВАШЕГО АГЕНТА ИЗ SUPABASE ЗДЕСЬ ---
-const CURRENT_AGENT_UUID = "8435c742-1f1e-4e72-a33b-2221985e9f83"; // (Оставьте ваш UUID)
-// -------------------------------------------------------------
+
+const CURRENT_AGENT_UUID = "8435c742-1f1e-4e72-a33b-2221985e9f83"; 
+
 
 
 async function main() {
@@ -58,7 +58,7 @@ async function main() {
       sendMessage, getDialogState, updateDialogState, resetHandoverStatus, agentClient: client, getAllDialogs
   });
 
-  // --- (ИЗМЕНЕНО) ЛОГИКА ЗАГРУЗКИ ЦЕЛЕЙ ---
+  
   const activeDialogs = await campaignManager.getActiveDialogs(CURRENT_AGENT_UUID);
   log.info(`[Init] Найдено ${activeDialogs.length} активных диалогов для агента.`);
   
@@ -72,14 +72,11 @@ async function main() {
   const nextLead = await campaignManager.getNextLead(CURRENT_AGENT_UUID);
   const initialText = agentData.initial_opener_text; 
 
-  // === (ИСПРАВЛЕНИЕ ЗДЕСЬ) ===
-  // Я УБРАЛ ОШИБОЧНУЮ ПРОВЕРКУ 'dialog_state.json'
-  // Если Supabase (nextLead) сказал, что лид 'NEW' - МЫ ОТПРАВЛЯЕМ.
+
   if (nextLead) {
       const targetUsername = '@' + nextLead.username;
       log.info(`[Init] Найдена НОВАЯ цель: ${targetUsername} (из кампании ${nextLead.campaign_id})`);
-      
-      // Отправляем как 'OUTGOING' (с задержкой и "печатает...")
+  
       await sendMessage({ 
           client, 
           target: targetUsername, 
@@ -89,7 +86,6 @@ async function main() {
       
       await campaignManager.updateLeadStatus(nextLead.campaign_id, targetUsername, 'CONTACTED');
       
-      // Мы все еще обновляем dialog_state.json, чтобы хранить историю
       await updateDialogState(CURRENT_AGENT_UUID, targetUsername, {
           status: 'ACTIVE', 
           history: [{ role: 'assistant', content: initialText }]
@@ -101,7 +97,6 @@ async function main() {
   } else {
       log.info('[Init] Нет новых лидов для отправки. Ждем входящих...');
   }
-  // --- (КОНЕЦ ИСПРАВЛЕНИЙ) ---
 
 
   client.addEventHandler(async (event) => {
@@ -139,7 +134,7 @@ async function main() {
     
     try {
       await client.invoke(new Api.messages.SetTyping({ peer: senderEntity, action: new Api.SendMessageTypingAction() }));
-    } catch(e) { /* ignore */ }
+    } catch(e) {  }
     
     const { agentReply, handoverIntent } = await handleDialog({ 
       key: config.openai.key, 
