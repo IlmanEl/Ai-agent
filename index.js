@@ -1,4 +1,4 @@
-// index.js (Финальная версия, Шаг 3)
+// index.js (Финальная версия)
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -16,14 +16,15 @@ import { getDialogState, updateDialogState, resetHandoverStatus, getAllDialogs }
 import { getAgent } from './src/modules/db.js';
 import { campaignManager } from './src/services/campaignManager.js';
 
-
+// --- ВАЖНО: UUID ВАШЕГО АГЕНТА ИЗ SUPABASE ---
 const CURRENT_AGENT_UUID = "8435c742-1f1e-4e72-a33b-2221985e9f83";
+// -------------------------------------------------------------
 
 
 async function main() {
   const agentData = await getAgent(CURRENT_AGENT_UUID);
   if (!agentData) {
-      log.error(`Не удалось загрузить данные агента с UUID: ${CURRENT_AGENT_UUID}`);
+      log.error(`Не удалось загрузить данные агента с UUID: ${CURRENT_AGENT_UUID} (Проверьте Шаг 1 SQL и Шаг 2 db.js)`);
       return;
   }
   log.info(`Запускаем агента: ${agentData.agent_name}`);
@@ -32,6 +33,7 @@ async function main() {
   
   if (!agentData.tg_session_string) {
       log.warn("Сессия агента не найдена в БД. Запускаем получение новой сессии...");
+      // ... (Код получения сессии, если нужен)...
       return; 
   }
 
@@ -50,13 +52,11 @@ async function main() {
   
   let monitoredTargets = activeDialogs.map(d => '@' + d.username);
   
-  if (!monitoredTargets.includes(config.testTarget)) {
+  if (config.testTarget && !monitoredTargets.includes(config.testTarget)) {
       monitoredTargets.push(config.testTarget);
   }
   log.info(`[Init] Слушаем цели: ${monitoredTargets.join(', ')}`);
   
-  // (Берем opener_text из БД, а не из agentData.initial_opener_text)
-  // TODO: Нам нужно будет добавить initial_opener_text в SELECT в db.js
   const initialText = agentData.initial_opener_text || "Здравствуйте! Мы из Referendum. Хотели бы предложить сотрудничество."; 
 
   const nextLead = await campaignManager.getNextLead(CURRENT_AGENT_UUID);
@@ -121,15 +121,15 @@ async function main() {
       await client.invoke(new Api.messages.SetTyping({ peer: senderEntity, action: new Api.SendMessageTypingAction() }));
     } catch(e) { /* ignore */ }
     
-    // === (ФИНАЛЬНЫЙ ФИКС) ===
-    // Передаем ВЕСЬ объект agentData, а не system_prompt
+    // === ВОТ ЭТА СТРОКА (в моей нумерации ~180) ===
+    // Она передает ВЕСЬ agentData, как и договорились
     const { agentReply, handoverIntent } = await handleDialog({ 
       key: config.openai.key, 
       history: currentHistory, 
       userReply,
       agentData: agentData // <-- ПРАВИЛЬНО
     });
-    // === (КОНЕЦ ФИКСА) ===
+    // === КОНЕЦ ===
     
     if (handoverIntent && (handoverIntent === 'POSITIVE_CLOSE' || handoverIntent === 'AI_FAILURE')) {
       log.warn(`Handover triggered for ${senderUsername}. Intent: ${handoverIntent}.`);

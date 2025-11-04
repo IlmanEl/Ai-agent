@@ -1,4 +1,4 @@
-// src/services/aiAgent.js
+// src/modules/aiAgent.js
 import OpenAI from 'openai';
 import Joi from 'joi';
 import { log } from '../utils/logger.js';
@@ -81,12 +81,12 @@ ${knowledgeContext}`;
         
         // 3. Вызов LLM
         const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o-mini', // Наша модель
             messages: [
                 { role: 'system', content: finalPrompt },
                 ...history.slice(-10) // Последние 10 сообщений
             ],
-            temperature: 0.6, // Баланс (выбор Claude)
+            temperature: 0.6, // Баланс креативности
             response_format: { type: "json_object" }
         });
 

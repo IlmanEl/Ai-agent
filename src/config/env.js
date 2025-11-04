@@ -34,7 +34,7 @@ export const config = {
   },
   openai: {
     key: process.env.OPENAI_API_KEY,
-    model: 'gpt-4o-mini',
+    model: 'gpt-5-mini',
   },
   supabase: {
     url: process.env.SUPABASE_URL || '',

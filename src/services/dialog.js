@@ -1,3 +1,4 @@
+// src/services/dialog.js
 import { getReply } from '../modules/aiAgent.js'; // Убедитесь, что путь правильный
 import { log } from '../utils/logger.js';
 

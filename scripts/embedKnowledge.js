@@ -1,8 +1,8 @@
-// scripts/embedKnowledge.js
+// scripts/embedKnowledge.js (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
-import fs from 'fs/promises'; 
+import fs from 'fs/promises';
 
 dotenv.config();
 
@@ -10,28 +10,43 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // === КОНФИГУРАЦИЯ ===
-const CLIENT_ID = "799bd492-5a5f-46e0-80ea-fc83f5fef360"; 
-const KNOWLEDGE_FILE = "./knowledge/referendum.txt"; 
-const CHUNK_SIZE = 500; // Символов на чанк (кусок)
+// Убедитесь, что ID клиента правильный
+const CLIENT_ID = "799bd492-5a5f-46e0-80ea-fc83f5fef360"; // Referendum
+const KNOWLEDGE_FILE = "./knowledge/referendum.txt"; // Читаем из файла!
+const CHUNK_SIZE = 500; // Целевой размер чанка в символах
 
-// Умная разбивка по абзацам
+// --- (ИСПРАВЛЕННАЯ ЛОГИКА РАЗБИВКИ) ---
 function smartChunk(text, maxSize = CHUNK_SIZE) {
-    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 10); 
+    const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 10);
     const chunks = [];
     
-    let currentChunk = "";
     for (const para of paragraphs) {
-        if ((currentChunk + para).length > maxSize && currentChunk.length > 0) {
-            chunks.push(currentChunk.trim());
-            currentChunk = para;
+        // Если абзац сам по себе больше CHUNK_SIZE, делим его
+        if (para.length > maxSize) {
+            // Делим по точкам, вопросам, восклицаниям И переносам строки
+            const sentences = para.split(/([.?!]|\n)/g);
+            let currentChunk = "";
+            for (let i = 0; i < sentences.length; i++) {
+                const sentence = sentences[i];
+                if ((currentChunk + sentence).length > maxSize && currentChunk.length > 0) {
+                    chunks.push(currentChunk.trim());
+                    currentChunk = sentence;
+                } else {
+                    currentChunk += sentence;
+                }
+            }
+            if (currentChunk.trim().length > 10) {
+                chunks.push(currentChunk.trim());
+            }
         } else {
-            currentChunk += (currentChunk ? "\n\n" : "") + para;
+            // Абзац помещается в чанк
+            chunks.push(para.trim());
         }
     }
-    if (currentChunk) chunks.push(currentChunk.trim());
     
-    return chunks;
+    return chunks.filter(c => c.length > 0);
 }
+// --- (КОНЕЦ ИСПРАВЛЕНИЯ) ---
 
 async function getEmbedding(text) {
     try {
@@ -50,7 +65,6 @@ async function main() {
     console.log(`\n🚀 Загрузка базы знаний для client_id: ${CLIENT_ID}`);
     console.log(`📄 Файл: ${KNOWLEDGE_FILE}\n`);
     
-    // 1. Читаем методичку из файла
     let knowledgeText;
     try {
         knowledgeText = await fs.readFile(KNOWLEDGE_FILE, 'utf-8');
@@ -60,7 +74,6 @@ async function main() {
         return;
     }
     
-    // 2. Очистка старых знаний
     console.log('🧹 Удаляем старые знания...');
     const { error: deleteError } = await supabase
         .from('knowledge_base')
@@ -73,11 +86,13 @@ async function main() {
     }
     console.log('✅ Старые знания удалены\n');
 
-    // 3. Разбивка на чанки
     const chunks = smartChunk(knowledgeText);
     console.log(`📦 Разбито на ${chunks.length} чанков\n`);
 
-    // 4. Загрузка
+    if (chunks.length <= 1 && knowledgeText.length > CHUNK_SIZE) {
+         console.warn("ВНИМАНИЕ: Не удалось эффективно разбить текст на чанки. Проверьте формат файла 'referendum.txt'. Он должен содержать пустые строки (двойные переносы) между абзацами.");
+    }
+
     let successCount = 0;
     for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
@@ -104,7 +119,7 @@ async function main() {
             console.log(`✅ Загружено\n`);
             successCount++;
         }
-        await new Promise(resolve => setTimeout(resolve, 100)); // Задержка
+        await new Promise(resolve => setTimeout(resolve, 100)); // Задержка от спама API
     }
 
     console.log(`\n🎉 Готово! Загружено ${successCount}/${chunks.length} чанков\n`);
