@@ -1,4 +1,4 @@
-// index.js 
+// index.js (Финальная версия, Шаг 3)
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -17,16 +17,10 @@ import { getAgent } from './src/modules/db.js';
 import { campaignManager } from './src/services/campaignManager.js';
 
 
-const CURRENT_AGENT_UUID = "8435c742-1f1e-4e72-a33b-2221985e9f83"; 
-
+const CURRENT_AGENT_UUID = "8435c742-1f1e-4e72-a33b-2221985e9f83";
 
 
 async function main() {
-  if (CURRENT_AGENT_UUID.startsWith("ЗАМЕНИТЕ_МЕНЯ")) {
-      log.error("ОШИБКА: Укажите ваш `CURRENT_AGENT_UUID` в файле `index.js`");
-      return;
-  }
-
   const agentData = await getAgent(CURRENT_AGENT_UUID);
   if (!agentData) {
       log.error(`Не удалось загрузить данные агента с UUID: ${CURRENT_AGENT_UUID}`);
@@ -38,13 +32,6 @@ async function main() {
   
   if (!agentData.tg_session_string) {
       log.warn("Сессия агента не найдена в БД. Запускаем получение новой сессии...");
-      const newSession = await getSession({ 
-          apiId: config.tg.apiId, 
-          apiHash: config.tg.apiHash, 
-          phone: config.tg.phone 
-      });
-      log.info('New session: ' + newSession);
-      log.info('!!! ПОЖАЛУЙСТА, СКОПИРУЙТЕ ЭТУ СЕССИЮ В SUPABASE и перезапустите !!!');
       return; 
   }
 
@@ -58,7 +45,6 @@ async function main() {
       sendMessage, getDialogState, updateDialogState, resetHandoverStatus, agentClient: client, getAllDialogs
   });
 
-  
   const activeDialogs = await campaignManager.getActiveDialogs(CURRENT_AGENT_UUID);
   log.info(`[Init] Найдено ${activeDialogs.length} активных диалогов для агента.`);
   
@@ -69,14 +55,16 @@ async function main() {
   }
   log.info(`[Init] Слушаем цели: ${monitoredTargets.join(', ')}`);
   
-  const nextLead = await campaignManager.getNextLead(CURRENT_AGENT_UUID);
-  const initialText = agentData.initial_opener_text; 
+  // (Берем opener_text из БД, а не из agentData.initial_opener_text)
+  // TODO: Нам нужно будет добавить initial_opener_text в SELECT в db.js
+  const initialText = agentData.initial_opener_text || "Здравствуйте! Мы из Referendum. Хотели бы предложить сотрудничество."; 
 
+  const nextLead = await campaignManager.getNextLead(CURRENT_AGENT_UUID);
 
   if (nextLead) {
       const targetUsername = '@' + nextLead.username;
       log.info(`[Init] Найдена НОВАЯ цель: ${targetUsername} (из кампании ${nextLead.campaign_id})`);
-  
+      
       await sendMessage({ 
           client, 
           target: targetUsername, 
@@ -107,9 +95,6 @@ async function main() {
     const senderUsername = senderEntity.username ? '@' + senderEntity.username : senderEntity.id.toString();
 
     if (senderUsername === agentUsername || !monitoredTargets.includes(senderUsername)) {
-        if (senderUsername !== agentUsername) {
-            log.warn(`[Event] Игнор сообщения от ${senderUsername} (нет в списке целей)`);
-        }
         return;
     }
 
@@ -134,14 +119,17 @@ async function main() {
     
     try {
       await client.invoke(new Api.messages.SetTyping({ peer: senderEntity, action: new Api.SendMessageTypingAction() }));
-    } catch(e) {  }
+    } catch(e) { /* ignore */ }
     
+    // === (ФИНАЛЬНЫЙ ФИКС) ===
+    // Передаем ВЕСЬ объект agentData, а не system_prompt
     const { agentReply, handoverIntent } = await handleDialog({ 
       key: config.openai.key, 
       history: currentHistory, 
       userReply,
-      system_prompt: agentData.system_prompt
+      agentData: agentData // <-- ПРАВИЛЬНО
     });
+    // === (КОНЕЦ ФИКСА) ===
     
     if (handoverIntent && (handoverIntent === 'POSITIVE_CLOSE' || handoverIntent === 'AI_FAILURE')) {
       log.warn(`Handover triggered for ${senderUsername}. Intent: ${handoverIntent}.`);

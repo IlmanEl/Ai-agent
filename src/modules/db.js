@@ -68,39 +68,40 @@ export async function getAgent(agent_id) {
     try {
         const { data, error } = await supabase
             .from('ai_agents')
-            .select('id, agent_name, tg_session_string, system_prompt, initial_opener_text')
-            .eq('id', agent_id); 
+            .select(`
+                id, 
+                agent_name, 
+                tg_session_string, 
+                initial_opener_text,
+                client_id,
+                core_system_prompt,
+                agent_persona
+            `)
+            .eq('id', agent_id)
+            .single();
 
         if (error) {
-            log.error(`[DB] Error during agent fetch: ${error.message}`);
-            throw error;
+            log.error(`[DB] Error fetching agent: ${error.message}`);
+            return null;
         }
-
-        if (!data || data.length === 0) {
-            log.error(`[DB] Error fetching agent: 0 rows found for UUID ${agent_id}`);
+        if (!data) {
+            log.error(`[DB] Agent not found: ${agent_id}`);
+            return null;
+        }
+        // Валидация (проверка), что промпты не пустые
+        if (!data.client_id) {
+            log.error(`[DB] Agent ${agent_id} не привязан к client_id!`);
+            return null;
+        }
+        if (!data.core_system_prompt || !data.agent_persona) {
+            log.error(`[DB] Agent ${agent_id}: core_system_prompt или agent_persona ПУСТЫЕ! Заполните их в Supabase (Шаг 1).`);
             return null;
         }
         
-        return data[0]; 
-
-    } catch (e) {
-        log.error(`[DB] Catch exception fetching agent: ${e.message}`);
-        return null;
-    }
-}
-
-export async function getClient(client_id) {
-    if (!supabase) return null;
-    try {
-        const { data, error } = await supabase
-            .from('clients')
-            .select('*') 
-            .eq('id', client_id)
-            .single();
-        if (error) throw error;
         return data;
+
     } catch (e) {
-        log.error(`[DB] Error fetching client: ${e.message}`);
+        log.error(`[DB] Exception fetching agent: ${e.message}`);
         return null;
     }
 }

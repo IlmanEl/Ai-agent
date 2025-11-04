@@ -1,18 +1,16 @@
-// src/services/dialog.js
-
-import { getReply } from '../modules/aiAgent.js';
+import { getReply } from '../modules/aiAgent.js'; // Убедитесь, что путь правильный
 import { log } from '../utils/logger.js';
 
-export async function handleDialog({ key, history, userReply, system_prompt }) {
+export async function handleDialog({ key, history, userReply, agentData }) {
   
   const { agentReply, handoverIntent } = await getReply({ 
     key, 
     history, 
-    message: userReply, 
-    system_prompt 
+    userReply: userReply, 
+    agentData // ← Передаем весь объект
   });
 
-  log.info(`Agent Reply (Intent: ${handoverIntent}): ${agentReply}`);
+  log.info(`[Dialog] Intent: ${handoverIntent}, Reply: ${agentReply.substring(0, 50)}...`);
   
   return { agentReply, handoverIntent };
 }
