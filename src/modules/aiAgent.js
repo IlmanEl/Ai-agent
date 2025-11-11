@@ -1,4 +1,4 @@
-// src/modules/aiAgent.js
+// src/modules/aiAgent.js 
 import OpenAI from 'openai';
 import Joi from 'joi';
 import { log } from '../utils/logger.js';
@@ -7,7 +7,7 @@ import { config } from '../config/env.js';
 
 const supabase = createClient(config.supabase.url, config.supabase.key);
 
-// Схема Joi для валидации
+
 const schema = Joi.object({ 
     key: Joi.string().required(), 
     history: Joi.array().required(), 
@@ -16,12 +16,11 @@ const schema = Joi.object({
         client_id: Joi.string().required(),
         core_system_prompt: Joi.string().required(),
         agent_persona: Joi.string().required()
-    }).required().unknown(true) // .unknown(true) важно, т.к. agentData > чем схема
+    }).required().unknown(true)
 });
 
-/**
- * RAG: Поиск в базе знаний
- */
+
+ // RAG:
 async function searchKnowledge(query, clientId) {
     try {
         const openai = new OpenAI({ apiKey: config.openai.key });
@@ -31,11 +30,11 @@ async function searchKnowledge(query, clientId) {
         });
         const queryEmbedding = embeddingResponse.data[0].embedding;
 
-        // Вызываем SQL-функцию из Supabase
+        // SQL-функция из Supabase
         const { data, error } = await supabase.rpc('match_knowledge', {
             query_embedding: queryEmbedding,
-            match_threshold: 0.75, // Порог схожести
-            match_count: 3,        // Кол-во кусков
+            match_threshold: 0.3, 
+            match_count: 3,
             filter_client_id: clientId
         });
 
@@ -67,11 +66,10 @@ export async function getReply(params) {
     const openai = new OpenAI({ apiKey: key });
     
     try {
-        // 1. RAG поиск
+       
         const knowledgeContext = await searchKnowledge(userReply, agentData.client_id);
         log.info(`[RAG] Found ${knowledgeContext.length} chars of context`);
 
-        // 2. Собираем финальный промпт из БД
         const finalPrompt = `${agentData.core_system_prompt}
 
 ${agentData.agent_persona}
@@ -79,14 +77,14 @@ ${agentData.agent_persona}
 [БАЗА ЗНАНИЙ]
 ${knowledgeContext}`;
         
-        // 3. Вызов LLM
+
         const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini', // Наша модель
+            model: 'gpt-4o-mini',
             messages: [
                 { role: 'system', content: finalPrompt },
-                ...history.slice(-10) // Последние 10 сообщений
+                ...history.slice(-10)
             ],
-            temperature: 0.6, // Баланс креативности
+            temperature: 0.6,
             response_format: { type: "json_object" }
         });
 
