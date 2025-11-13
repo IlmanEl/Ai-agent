@@ -1,5 +1,8 @@
 # CLAUDE.md - AI Assistant Guide
 
+> **Русская версия доступна:** [CLAUDE.ru.md](./CLAUDE.ru.md)
+> **Russian version available:** [CLAUDE.ru.md](./CLAUDE.ru.md)
+
 ## Project Overview
 
 **Project Name:** ai-agent-referendum
