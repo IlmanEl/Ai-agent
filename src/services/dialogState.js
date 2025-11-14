@@ -1,12 +1,12 @@
-// src/services/dialogState.js (ПРАВИЛЬНАЯ ВЕРСИЯ)
+// src/services/dialogState.js 
 import fs from 'fs';
 import path from 'path';
 import { log } from '../utils/logger.js';
 
-// Файл, где хранится состояние диалогов
+
 const STATE_FILE = path.resolve(process.cwd(), 'dialog_state.json');
 
-// --- 1. Чтение и Запись Файла Состояния ---
+
 
 let allDialogs = {};
 try {
@@ -27,7 +27,6 @@ export function saveDialogState() {
     }
 }
 
-// --- 2. Функции Получения и Обновления Состояния ---
 
 const DEFAULT_STATE = { history: [], status: 'NEW', pendingReply: null, targetId: null, targetUsername: null };
 
@@ -37,9 +36,9 @@ export function getDialogState(agentId, targetUsername) {
         return { ...DEFAULT_STATE, status: 'ERROR' };
     }
     
-    // Юзернейм должен быть без @
+   
     const cleanUsername = targetUsername.startsWith('@') ? targetUsername.substring(1) : targetUsername;
-    // Ключ = AGENT_ID + USERNAME (для поддержки нескольких агентов)
+
     const key = `${agentId}_${cleanUsername}`; 
     
     if (!allDialogs[key]) {
@@ -58,7 +57,7 @@ export function updateDialogState(agentId, targetUsername, updates) {
     const cleanUsername = targetUsername.startsWith('@') ? targetUsername.substring(1) : targetUsername;
     const key = `${agentId}_${cleanUsername}`;
     
-    // Используем getDialogState, чтобы создать запись, если ее нет
+
     const state = getDialogState(agentId, targetUsername); 
     
     allDialogs[key] = {
@@ -70,13 +69,12 @@ export function updateDialogState(agentId, targetUsername, updates) {
     return allDialogs[key];
 }
 
-// Эта функция нужна для Control Bot'а
 export function resetHandoverStatus(agentId, targetUsername) {
     updateDialogState(agentId, targetUsername, { status: 'ACTIVE', pendingReply: null });
     log.info(`[State] Reset handover status for ${targetUsername} to ACTIVE.`);
 }
 
-// Эта функция нужна для Control Bot'а
+
 export function getAllDialogs(agentId) {
      const agentDialogs = {};
      for (const key in allDialogs) {
