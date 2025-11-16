@@ -164,4 +164,3 @@ async function main() {
 }
 
 main().catch(err => log.error('Main error: ' + err.message, err));
-
